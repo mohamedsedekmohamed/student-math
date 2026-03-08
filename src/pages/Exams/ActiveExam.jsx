@@ -113,19 +113,56 @@ const ActiveExam = ({ exam, onExit }) => {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center font-sans relative w-screen">
       
       {/* نافذة الحاسبة */}
-      {showCalculator && (
-        <div className="fixed top-24 w-[95%] md:w-[500px] h-[500px] z-50 animate-in fade-in slide-in-from-top-4 duration-200">
-          <Calc onClose={() => setShowCalculator(false)} />
-        </div>
-      )}
-      
-      {/* نافذة الرسم البياني */}
-      {showGraph && (
-        <div className="fixed top-24 w-[95%] md:w-[600px] h-[500px] z-50 bg-white rounded-xl shadow-xl p-4">
-          <GraphViewer onClose={() => setShowGraph(false)} />
-        </div>
-      )}
+       {/* خلفية ضبابية (Backdrop) بتظهر لما أي أداة تتفتح */}
+{(showCalculator || showGraph) && (
+  <div 
+    className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 animate-in fade-in duration-200"
+    // onClick={() => { setShowCalculator(false); setShowGraph(false); }} // تقدر تفعل دي عشان يقفل لما يدوس برا
+  />
+)}
 
+{/* نافذة الآلة الحاسبة */}
+{showCalculator && (
+  <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[360px] h-fit z-50 animate-in fade-in zoom-in-95 duration-200 ease-out flex justify-center">
+    {/* زرار إغلاق اختياري فوق الآلة */}
+    <div className="relative w-full flex justify-center">
+      <button 
+        onClick={() => setShowCalculator(false)}
+        className="absolute -top-10 right-2 text-white/70 hover:text-white bg-black/20 hover:bg-black/50 rounded-full p-2 transition-all"
+      >
+        ✕
+      </button>
+      <Calc />
+    </div>
+  </div>
+)}
+
+{/* نافذة الرسم البياني */}
+{showGraph && (
+  <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] md:w-[850px] h-[85vh] md:h-[650px] z-50 bg-[#0f1115] rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.5)] border border-gray-800 animate-in fade-in zoom-in-95 duration-200 ease-out flex flex-col overflow-hidden">
+    
+    {/* شريط علوي (Header) للنافذة */}
+    <div className="flex justify-between items-center px-4 py-3 bg-gray-900 border-b border-gray-800">
+      <div className="flex items-center gap-2">
+        <div className="w-3 h-3 rounded-full bg-red-500"></div>
+        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+        <span className="ml-2 text-gray-300 font-medium text-sm">Graphing Engine</span>
+      </div>
+      <button 
+        onClick={() => setShowGraph(false)} 
+        className="text-gray-400 hover:text-red-400 transition-colors"
+      >
+        ✕
+      </button>
+    </div>
+
+    {/* مساحة الـ GraphViewer */}
+    <div className="flex-1 relative w-full h-full">
+      <GraphViewer />
+    </div>
+  </div>
+)}
       {/* الهيدر العلوي */}
       <div className="w-full bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-10">
         <div className="flex items-center gap-4">

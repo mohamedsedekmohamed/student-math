@@ -3,7 +3,6 @@ import { useState } from "react";
 import { Toaster } from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import { TbMathFunction, TbArrowRight } from 'react-icons/tb';
-
 const Login = () => {
   const { postData, loading } = usePost();
   const navigate = useNavigate();
@@ -11,13 +10,39 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    // Simulate login process
-    localStorage.setItem("role", "admin");
-    localStorage.setItem("token", "123456");
-    navigate("/user");
-  };
+ const handleLogin = async (e) => {
+  e.preventDefault();
+
+  // validation
+  if (!email) {
+    alert("Email is required");
+    return;
+  }
+
+  if (!password) {
+    alert("Password is required");
+    return;
+  }
+
+  // email format validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    alert("Please enter a valid email");
+    return;
+  }
+
+  try {
+    const response = await postData({ email, password },"/api/user/auth/login",
+      "Logged in successfully"
+     );
+
+
+localStorage.setItem("token", response.data.token);
+    navigate("/user/exams");
+  } catch (error) {
+throw error; 
+  }
+};
 
   return (
     <div className="min-h-screen flex bg-white font-sans text-left" dir="ltr">

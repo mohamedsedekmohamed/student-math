@@ -5,6 +5,7 @@ import AdminLayout from "../Layout/AdminLayout";
 import Home from "../pages/Home/Home";
 import Loading from "../components/Loading";
 import Exams from "../pages/Exams/Exams";
+import Profile from '../pages/Profile/Profile'
 const router = createBrowserRouter([
   {
     path: "/",
@@ -21,6 +22,7 @@ const router = createBrowserRouter([
       { index: true, element: <Home /> },
       { path: "loading", element: <Loading /> },
       { path: "exams", element: <Exams /> },
+      { path: "profile", element: <Profile /> },
     ],
   },
 ]);

@@ -1,8 +1,9 @@
 import React from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import { TbMathFunction, TbUserCircle } from "react-icons/tb";
 
 const AdminLayout = () => {
+  const navigator = useNavigate();
   return (
     <div className="min-h-screen max-w-screen  bg-[#F8FAFC] font-sans  overflow-x-hidden"  >
 
@@ -21,11 +22,13 @@ const AdminLayout = () => {
         <div className="flex items-center gap-3 cursor-pointer group transition-all">
           <div className="text-right hidden sm:block">
             <p className="text-xs font-bold text-slate-700 leading-none group-hover:text-[#7D0A0A]">
-              Admin User
+               User
             </p>
           </div>
 
+<button onClick={()=>navigator("/user/profile")}>
           <TbUserCircle className="text-3xl text-slate-400 group-hover:text-[#7D0A0A] transition-colors" />
+</button>
         </div>
       </nav>
 
