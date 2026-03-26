@@ -2,14 +2,16 @@ import React from "react";
 import { motion } from "framer-motion";
 import { 
   User, Mail, Phone, GraduationCap, 
-  Wallet, LayoutGrid, Settings, LogOut, ShieldCheck 
+  Wallet, LayoutGrid, Settings, LogOut, ShieldCheck, 
+  ArrowLeft // 👈 ضفنا الأيقونة دي هنا
 } from "lucide-react";
 import useGet from "@/hooks/useGet";
 import Loading from "@/components/Loading";
 import Errorpage from "@/components/Errorpage";
 import { useNavigate } from "react-router-dom";
+
 const Profile = () => {
-    const navigator = useNavigate();
+  const navigator = useNavigate();
   const { data, loading, error } = useGet("/api/user/profile");
 
   if (loading) return <Loading />;
@@ -33,7 +35,7 @@ const Profile = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-indigo-100">
+    <div className=" bg-[#f8fafc] text-slate-900 font-sans selection:bg-indigo-100">
       {/* Decorative background blobs */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden -z-10">
         <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-indigo-100 rounded-full blur-3xl opacity-50" />
@@ -41,8 +43,16 @@ const Profile = () => {
       </div>
 
       <div className="w-full px-4 md:px-10 py-8">
-        {/* Header */}
-     
+        {/* Header - ضفنا زرار الرجوع هنا 👇 */}
+        <div className="mb-8 flex items-center">
+          <button
+            onClick={() => navigator(-1)}
+            className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-md border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 hover:text-one hover:border-indigo-100 transition-all shadow-sm font-bold active:scale-95"
+          >
+            <ArrowLeft size={18} />
+            Back
+          </button>
+        </div>
 
         {student && (
           <motion.div 
@@ -89,8 +99,6 @@ const Profile = () => {
             {/* Right Column: Wallet & Stats */}
             <div className="lg:col-span-4 space-y-6">
               {/* Wallet Card */}
-            
-               
            <motion.div 
   whileHover={{ y: -5 }}
   className="relative overflow-hidden bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.05)]"
@@ -150,9 +158,9 @@ const Profile = () => {
                     <button onClick={()=>{
                         localStorage.removeItem("token")
                         navigator('/')
-                    }} className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-red-50 transition-colors group">
-                        <span className="text-one font-medium">Log Out</span>
-                        <LogOut className="w-4 h-4 text-one" />
+                    }} className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-red-50 hover:text-red-600 transition-colors group">
+                        <span className="text-slate-700 group-hover:text-red-600 font-bold transition-colors">Log Out</span>
+                        <LogOut className="w-5 h-5 text-slate-400 group-hover:text-red-600 transition-colors" />
                     </button>
                  </div>
               </div>
@@ -178,4 +186,4 @@ const ProfileField = ({ icon, label, value }) => (
   </motion.div>
 );
 
-export default Profile;
+export default Profile; 

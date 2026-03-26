@@ -1,8 +1,9 @@
 import usePost from "@/hooks/usePost";
 import { useState } from "react";
-import { Toaster } from "react-hot-toast";
-import { useNavigate } from "react-router-dom";
+import { toast,Toaster } from "react-hot-toast";
+import { Link, useNavigate } from "react-router-dom";
 import { TbMathFunction, TbArrowRight } from 'react-icons/tb';
+ import api from '../api/api'
 const Login = () => {
   const { postData, loading } = usePost();
   const navigate = useNavigate();
@@ -13,35 +14,42 @@ const Login = () => {
  const handleLogin = async (e) => {
   e.preventDefault();
 
-  // validation
-  if (!email) {
-    alert("Email is required");
-    return;
-  }
+  if (!email) return alert("Email is required");
+  if (!password) return alert("Password is required");
 
-  if (!password) {
-    alert("Password is required");
-    return;
-  }
-
-  // email format validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    alert("Please enter a valid email");
-    return;
-  }
+  if (!emailRegex.test(email)) return alert("Please enter a valid email");
 
   try {
-    const response = await postData({ email, password },"/api/user/auth/login",
-      "Logged in successfully"
-     );
+    const response = await api.post("/api/user/auth/login", {
+      email,
+      password,
+    });
 
+    const token = response.data.data.token;
+    localStorage.setItem("token", token);
 
-localStorage.setItem("token", response.data.token);
-    navigate("/user/exams");
+    toast.success("Logged in successfully 🎉");
+
+    navigate("/user/home");
+
   } catch (error) {
-throw error; 
+  console.error("Login error:", error);
+
+  const message = error.response?.data?.error?.message || "Something went wrong";
+  if(message=="Invalid Credentials"){
+  toast.error(message);
+
   }
+  else{
+  toast.error(message);
+ setTimeout(() => {
+    navigate("/resendverificationemail" ,{
+      state: { email }
+    });
+  }, 2000);
+  }
+}
 };
 
   return (
@@ -84,7 +92,7 @@ throw error;
             <div>
               <div className="flex justify-between items-center mb-2.5">
                 <label className="block text-sm font-semibold text-slate-800">Password</label>
-                <a href="#" className="text-sm font-medium text-one hover:text-[#5a0707] transition-colors">Forgot password?</a>
+                <Link to="/forgetpassword" className="text-sm font-medium text-one hover:text-[#5a0707] transition-colors">Forgot password?</Link>
               </div>
               <input
                 type="password"
@@ -104,6 +112,18 @@ throw error;
               <TbArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
           </form>
+          <div className="text-center pt-2">
+  <p className="text-slate-500 text-sm">
+    Don’t have an account?{" "}
+    <button
+      type="button"
+      onClick={() => navigate("/signup")}
+      className="text-one font-semibold hover:underline"
+    >
+      Sign Up
+    </button>
+  </p>
+</div>
 
           {/* Footer */}
           <div className="mt-16 text-center text-sm text-slate-500">

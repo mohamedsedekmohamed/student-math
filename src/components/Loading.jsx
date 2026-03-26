@@ -3,7 +3,7 @@ import styled from 'styled-components';
 
 const Loading = () => {
   return (
-    <div className="flex items-center justify-center h-screen">
+    <div className="flex items-center justify-center h-screen overflow-y-hidden" >
     <StyledWrapper>
       <div className="boxes">
         <div className="box">

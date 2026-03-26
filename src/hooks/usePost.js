@@ -7,6 +7,7 @@ export default function usePost(defaultUrl = "") {
   const [error, setError] = useState(null);
 
 
+
   const postData = async (body = {}, customUrl = null, toastMessage = "Success") => {
     try {
       setLoading(true);
@@ -20,27 +21,26 @@ export default function usePost(defaultUrl = "") {
       toast.success(toastMessage);
 
       return res.data;
-    }catch (err) {
-  const error = err?.response?.data?.error;
 
-  let errorMessage = "Error try ";
+} catch (err) {
+  // التأكد من الوصول للرسالة حسب الـ JSON اللي إنت بعته
+  const apiError = err?.response?.data?.error;
+  
+  let errorMessage = "Something went wrong";
 
-  if (error?.details && Array.isArray(error.details)) {
-    errorMessage = error.details.map(e => e.message).join("\n");
-  } else if (error?.message) {
-    errorMessage = error.message;
+  if (apiError?.message) {
+    errorMessage = apiError.message; // دي اللي هتمسك "Payment method, amount..."
+  } else if (err.response?.data?.message) {
+    errorMessage = err.response.data.message;
   } else if (err.message) {
     errorMessage = err.message;
   }
 
   setError(errorMessage);
-  toast.error(errorMessage);
-
-  // لو محتاج توقف التنفيذ
-  throw new Error(errorMessage);
-
-
-    } finally {
+  toast.error(errorMessage); // المفروض التوست يظهر هنا تلقائياً
+  
+  throw new Error(errorMessage); 
+}finally {
       setLoading(false);
     }
   };

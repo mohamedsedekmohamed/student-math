@@ -1,332 +1,360 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  CheckCircle, Clock, ChevronRight, ChevronLeft, ArrowLeft, 
-  LayoutGrid, Calculator, X, BarChart, XCircle, AlertCircle, 
-  LineChart as LineChartIcon, FunctionSquare 
-} from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import Calc from '../../components/Calc'
-import GraphViewer from '../../components/GraphViewer'
+import React, { useState, useEffect } from "react"; // أضفنا useEffect
+import { useParams } from "react-router-dom";
+import useGet from "@/hooks/useGet";
+import Loading from "../../components/Loading";
+import Errorpage from "../../components/Errorpage";
+import {
+  CheckCircle,
+  Clock,
+  ChevronRight,
+  ChevronLeft,
+  ArrowLeft,
+  LayoutGrid,
+  Calculator,
+  LineChart as LineChartIcon,
+  X, // أضفنا أيقونة الإغلاق
+} from "lucide-react";
+import usePost from '@/hooks/usePost'
+import Swal from 'sweetalert2'; // Make sure to install: npm install sweetalert2
 
-// ==========================================
-// 2. شاشة الامتحان الأساسية
-// ==========================================
-const ActiveExam = ({ exam, onExit }) => {
+import Calc from "../../components/Calc";
+import GraphViewer from "../../components/GraphViewer";
+import { useLocation ,useNavigate } from "react-router-dom";
+
+const ActiveExam = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { data: apiResponse, loading, error } = useGet(`/api/user/diagnostic-exams/${id}/questions`);
+ const location = useLocation();
+ const exam = location.state?.exam;
+ const attemptId = location.state?.attemptId;
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState({}); 
-  
+  const [answers, setAnswers] = useState({});
   const [showCalculator, setShowCalculator] = useState(false);
   const [showGraph, setShowGraph] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [scoreData, setScoreData] = useState(null);
+   const { postData, loading: userLoading, error: userError } = usePost('');
+  
+  const [timeLeft, setTimeLeft] = useState((exam* 60) ||(60 * 60)); 
+  const [isImageZoomed, setIsImageZoomed] = useState(false);
 
-  const question = exam.questions[currentQuestionIndex];
-  const isLastQuestion = currentQuestionIndex === exam.questions.length - 1;
+  const questions = apiResponse?.data?.data || [];
+  const question = questions[currentQuestionIndex];
+  const isLastQuestion = currentQuestionIndex === questions.length - 1;
 
-  const handleSelectOption = (option) => {
-    setAnswers({
-      ...answers,
-      [question.id]: option
-    });
+  // 2. منطق العداد الزمني
+  useEffect(() => {
+    if (timeLeft <= 0) return;
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [timeLeft]);
+
+  // دالة لتحويل الثواني إلى تنسيق 00:00
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleSubmit = () => {
-    const unansweredCount = exam.questions.length - Object.keys(answers).length;
-    
+  const handleAnswerChange = (value) => {
+    setAnswers({ ...answers, [question.id]: value });
+  };
+
+const handleSubmit = async () => {
+    // 1. فلترة الإجابات الفاضية وحساب العدد
+    const validAnswers = Object.entries(answers).filter(
+      ([_, value]) => value && value.toString().trim() !== ""
+    );
+
+    const answeredCount = validAnswers.length;
+    const unansweredCount = questions.length - answeredCount;
+
+    // 2. التحقق من الأسئلة اللي ماتحلتش
     if (unansweredCount > 0) {
-      const confirmSubmit = window.confirm(`You have ${unansweredCount} unanswered questions. Are you sure you want to submit?`);
-      if (!confirmSubmit) return;
+      const result = await Swal.fire({
+        title: 'Submit Exam?',
+        text: `You have ${unansweredCount} unanswered questions.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#4f46e5',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Submit Anyway',
+        cancelButtonText: 'Review Answers',
+      });
+
+      if (!result.isConfirmed) return;
     }
 
-    let correct = 0;
-    let incorrect = 0;
-    let unattempted = 0;
+    // 3. بناء الداتا بالشكل المطلوب بالظبط (answerId للـ MCQ و textValue للـ Grid in)
+    const formattedAnswers = validAnswers.map(([questionId, value]) => {
+      const questionObj = questions.find((q) => q.id === questionId);
 
-    exam.questions.forEach((q) => {
-      const studentAnswer = answers[q.id];
-      if (!studentAnswer) {
-        unattempted++;
-      } else if (studentAnswer === q.correctAnswer) {
-        correct++;
-      } else {
-        incorrect++;
-      }
+      if (questionObj?.answerType === "MCQ") {
+        return {
+          questionId: questionId,
+          answerId: value, 
+        };
+      } 
+      
+      // الديفولت أو لو النوع Grid in
+      return {
+        questionId: questionId,
+        textValue: value.toString(),
+      };
     });
 
-    setScoreData({
-      correct,
-      incorrect,
-      unattempted,
-      total: exam.questions.length,
-      percentage: Math.round((correct / exam.questions.length) * 100)
-    });
+    // ده الـ Payload النهائي اللي هيتبعت 
+    const payload = {
+      answers: formattedAnswers
+    };
 
-    setIsSubmitted(true);
+
+    // 4. إرسال الداتا للـ API
+ try {
+      const res = await postData(
+        payload,
+        `/api/user/diagnostic-exams/${attemptId}/submit`,
+        "Exam submitted successfully!"
+      );
+
+      // التعديل هنا 👇
+      await Swal.fire({
+      title: "Well done! 🎉",
+text: "Your exam has been submitted. Let’s review your answers.",
+icon: "success",
+        confirmButtonText: 'Let\'s Review', // غيرنا نص الزرار
+        confirmButtonColor: '#4f46e5',
+      });
+
+      navigate(`/user/review/${attemptId}`);
+
+    } catch (err) {
+      console.error("Error submitting exam:", err);
+
+      Swal.fire({
+        title: 'Error',
+        text: err.message || 'Failed to submit exam',
+        icon: 'error',
+        confirmButtonColor: '#d33',
+      });
+    }
   };
 
-  // شاشة النتيجة
-  if (isSubmitted && scoreData) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6 font-sans w-screen">
-        <div className="bg-white max-w-2xl w-full rounded-2xl shadow-lg border border-gray-100 p-8 text-center animate-in fade-in zoom-in duration-300">
-          <div className="w-20 h-20 bg-one/10 text-one rounded-full flex items-center justify-center mx-auto mb-6">
-            <BarChart className="w-10 h-10" />
-          </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Exam Completed!</h2>
-          <p className="text-gray-500 mb-8">Here is your performance summary for {exam.title}</p>
-          
-          <div className="grid grid-cols-3 gap-4 mb-8">
-            <div className="bg-green-50 border border-green-100 p-4 rounded-xl">
-              <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-green-700">{scoreData.correct}</p>
-              <p className="text-sm text-green-600 font-medium">Correct</p>
-            </div>
-            <div className="bg-red-50 border border-red-100 p-4 rounded-xl">
-              <XCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-red-700">{scoreData.incorrect}</p>
-              <p className="text-sm text-red-600 font-medium">Incorrect</p>
-            </div>
-            <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl">
-              <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-gray-700">{scoreData.unattempted}</p>
-              <p className="text-sm text-gray-500 font-medium">Unattempted</p>
-            </div>
-          </div>
-
-          <div className="bg-one/10 text-one p-6 rounded-xl mb-8 font-semibold text-lg flex justify-between items-center">
-            <span>Final Score:</span>
-            <span className="text-3xl">{scoreData.percentage}%</span>
-          </div>
-
-          <button 
-            onClick={onExit}
-            className="w-full bg-one hover:bg-one/80 text-white font-bold py-3 px-6 rounded-lg transition-colors"
-          >
-            Return to Dashboard
-          </button>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <div className="h-screen flex items-center justify-center"><Loading /></div>;
+  if (error) return <div className="h-screen flex items-center justify-center"><Errorpage /></div>;
+  if (questions.length === 0) return <div className="h-screen flex items-center justify-center text-sm">No questions found.</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center font-sans relative w-screen">
+    <div className="bg-gray-50 flex flex-col items-center relative w-screen overflow-x-hidden font-sans pb-4">
       
-      {/* نافذة الحاسبة */}
-       {/* خلفية ضبابية (Backdrop) بتظهر لما أي أداة تتفتح */}
-{(showCalculator || showGraph) && (
-  <div 
-    className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 animate-in fade-in duration-200"
-    // onClick={() => { setShowCalculator(false); setShowGraph(false); }} // تقدر تفعل دي عشان يقفل لما يدوس برا
-  />
-)}
-
-{/* نافذة الآلة الحاسبة */}
-{showCalculator && (
-  <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[360px] h-fit z-50 animate-in fade-in zoom-in-95 duration-200 ease-out flex justify-center">
-    {/* زرار إغلاق اختياري فوق الآلة */}
-    <div className="relative w-full flex justify-center">
-      <button 
-        onClick={() => setShowCalculator(false)}
-        className="absolute -top-10 right-2 text-white/70 hover:text-white bg-black/20 hover:bg-black/50 rounded-full p-2 transition-all"
-      >
-        ✕
-      </button>
-      <Calc />
-    </div>
-  </div>
-)}
-
-{/* نافذة الرسم البياني */}
-{showGraph && (
-  <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] md:w-[850px] h-[85vh] md:h-[650px] z-50 bg-[#0f1115] rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.5)] border border-gray-800 animate-in fade-in zoom-in-95 duration-200 ease-out flex flex-col overflow-hidden">
-    
-    {/* شريط علوي (Header) للنافذة */}
-    <div className="flex justify-between items-center px-4 py-3 bg-gray-900 border-b border-gray-800">
-      <div className="flex items-center gap-2">
-        <div className="w-3 h-3 rounded-full bg-red-500"></div>
-        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-        <div className="w-3 h-3 rounded-full bg-green-500"></div>
-        <span className="ml-2 text-gray-300 font-medium text-sm">Graphing Engine</span>
-      </div>
-      <button 
-        onClick={() => setShowGraph(false)} 
-        className="text-gray-400 hover:text-red-400 transition-colors"
-      >
-        ✕
-      </button>
-    </div>
-
-    {/* مساحة الـ GraphViewer */}
-    <div className="flex-1 relative w-full h-full">
-      <GraphViewer />
-    </div>
-  </div>
-)}
-      {/* الهيدر العلوي */}
-      <div className="w-full bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-10">
-        <div className="flex items-center gap-4">
-          <button onClick={onExit} className="text-gray-500 hover:text-gray-800 transition">
-            <ArrowLeft className="w-5 h-5" />
+      {/* --- نافذة تكبير الصورة (Full Screen Image) --- */}
+      {isImageZoomed && question.image && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out"
+          onClick={() => setIsImageZoomed(false)}
+        >
+          <button className="absolute top-6 right-6 text-white bg-white/10 p-2 rounded-full hover:bg-white/20">
+            <X size={24} />
           </button>
-          <h1 className="text-xl font-bold text-gray-800 hidden md:block">{exam.title}</h1>
+          <img 
+            src={question.image} 
+            alt="Zoomed view" 
+            className="max-w-full max-h-full object-contain animate-in zoom-in-95 duration-300"
+          />
         </div>
-        
-        <div className="flex items-center gap-2 md:gap-4">
-          
-          {/* زر الآلة الحاسبة */}
-          <button 
-            onClick={() => {
-              setShowCalculator(!showCalculator);
-              setShowGraph(false); // إغلاق الرسم البياني إذا كان مفتوحاً
-            }}
-            title="Calculator"
-            className={`group flex items-center justify-center p-2 md:px-4 md:py-2 rounded-lg font-medium transition-all duration-200 border shadow-sm active:scale-95 ${
-              showCalculator 
-                ? 'bg-one text-white border-one shadow-md' 
-                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
-            }`}
-          >
-            <Calculator className={`w-5 h-5 md:mr-2 transition-transform ${showCalculator ? 'scale-110' : ''}`} />
-            <span className="hidden md:block">Calculator</span>
-          </button>
+      )}
 
-          {/* زر الرسم البياني */}
-          <button 
-            onClick={() => {
-              setShowGraph(!showGraph);
-              setShowCalculator(false); // إغلاق الآلة الحاسبة إذا كانت مفتوحة
-            }}
-            title="Graph"
-            className={`group flex items-center justify-center p-2 md:px-4 md:py-2 rounded-lg font-medium transition-all duration-200 border shadow-sm active:scale-95 ${
-              showGraph 
-                ? 'bg-purple-600 text-white border-purple-600 shadow-md shadow-purple-200/50' 
-                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
-            }`}
-          >
-            <LineChartIcon className={`w-5 h-5 md:mr-2 transition-transform ${showGraph ? 'scale-110' : ''}`} />
-            <span className="hidden md:block">Graph</span>
-          </button>   
+      {/* --- Overlays & Modals --- */}
+      {(showCalculator || showGraph) && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 animate-in fade-in duration-200"
+          onClick={() => { setShowCalculator(false); setShowGraph(false); }}
+        />
+      )}
 
-          {/* فاصل مرئي */}
-          <div className="hidden md:block w-px h-8 bg-gray-200 mx-1"></div>
-
-          {/* المؤقت الزمني */}
-          <div className="flex items-center text-one font-bold bg-one/10 px-3 py-2 md:px-4 md:py-2 rounded-lg border border-one/20 shadow-inner">
-            <Clock className="w-5 h-5 mr-1.5 md:mr-2 animate-pulse text-one/80" />
-            <span className="tracking-wider tabular-nums">60:00</span>
-          </div>
-
-        </div>
-      </div>
-
-      <div className="flex-grow flex flex-col w-full max-w-7xl p-4 gap-6">
-        
-        <div className="w-full bg-white rounded-xl shadow-sm border border-gray-100 py-3 mt-4 mb-4 flex flex-col h-fit">
-          <div className='flex justify-between flex-col md:flex-row gap-4 mb-6 border-b border-gray-100 pb-4 px-6'>
-            <div className="flex items-center gap-2 text-gray-800 font-semibold">
-              <LayoutGrid className="w-5 h-5" />
-              <h3>Question Navigation</h3>
-            </div>
-
-            <div className="flex space-x-4 text-sm text-gray-600">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-one"></div>
-                <span>Answered</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-gray-200"></div>
-                <span>Not Answered</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex flex-wrap gap-x-4 gap-y-3 custom-scrollbar px-6 overflow-y-auto max-h-48">
-            {exam.questions.map((q, index) => {
-              const isAnswered = answers[q.id] !== undefined;
-              const isActive = currentQuestionIndex === index;
-              
-              return (
-                <button
-                  key={q.id}
-                  onClick={() => setCurrentQuestionIndex(index)}
-                  className={`w-10 h-10 flex items-center justify-center rounded-lg font-medium text-sm transition-all duration-200
-                    ${isActive ? 'ring-2 ring-one/60 ring-offset-2' : ''}
-                    ${isAnswered ? 'bg-one text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}
-                  `}
-                >
-                  {index + 1}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="flex-grow flex flex-col bg-white rounded-xl shadow-sm border border-gray-100 p-6 md:p-8">
-          <div className="flex justify-between text-sm text-gray-500 mb-6 font-medium border-b border-gray-100 pb-4">
-            <span>Question {currentQuestionIndex + 1} of {exam.questions.length}</span>
-          </div>
-          
-          <h2 className="text-2xl font-semibold text-gray-900 mb-8 leading-relaxed">
-            {question.text}
-          </h2>
-
-          <div className="space-y-4 mb-8 flex-grow">
-            {question.options.map((option, index) => {
-              const isSelected = answers[question.id] === option;
-              return (
-                <label 
-                  key={index} 
-                  className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                    isSelected ? 'border-one/60 bg-one/10' : 'border-gray-200 hover:border-one/30 hover:bg-gray-50'
-                  }`}
-                >
-                  <input 
-                    type="radio" 
-                    name={question.id} 
-                    value={option} 
-                    checked={isSelected}
-                    onChange={() => handleSelectOption(option)}
-                    className="w-5 h-5 text-one focus:ring-one/50 border-gray-300"
-                  />
-                  <span className={`ml-3 text-lg ${isSelected ? 'text-one font-medium' : 'text-gray-700'}`}>
-                    {option}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-
-          <div className="flex justify-between items-center mt-auto pt-6 border-t border-gray-100">
+      {/* نافذة الآلة الحاسبة */}
+      {showCalculator && (
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl p-1 relative border border-gray-200">
             <button 
-              disabled={currentQuestionIndex === 0}
-              onClick={() => setCurrentQuestionIndex(prev => prev - 1)}
-              className="flex items-center px-6 py-2.5 rounded-lg font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              onClick={() => setShowCalculator(false)} 
+              className="absolute -top-10 right-0 bg-white text-gray-700 px-3 py-1 rounded-full text-xs font-bold shadow-md"
             >
-              <ChevronLeft className="w-5 h-5 mr-1" />
-              Previous
+              ✕ Close
+            </button>
+            <Calc />
+          </div>
+        </div>
+      )}
+
+      {/* نافذة الرسم البياني */}
+      {showGraph && (
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] h-[80vh] z-50 bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+          <div className="flex justify-between items-center px-4 py-2 border-b bg-gray-50">
+            <span className="text-xs font-bold text-gray-600 flex items-center gap-2">
+              <LineChartIcon size={14} className="text-purple-600"/> Graphing Tool
+            </span>
+            <button onClick={() => setShowGraph(false)} className="text-gray-400 hover:text-black"><X size={18}/></button>
+          </div>
+          <div className="flex-1">
+            <GraphViewer />
+          </div>
+        </div>
+      )}
+
+      {/* --- Header --- */}
+      <div className="w-full bg-white border-b border-gray-200 px-4 py-2 flex justify-between items-center sticky top-0 z-30 shadow-sm">
+        <div
+         onClick={()=>navigate(-1)}
+        className="flex items-center gap-2">
+          <button className="hover:bg-gray-100 p-1.5 rounded-full transition"><ArrowLeft size={18}/></button>
+          <h1  
+      
+          className="font-bold text-gray-700 hidden md:block text-xs">Diagnostic Exam</h1>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setShowCalculator(!showCalculator); setShowGraph(false); }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all font-bold text-[11px] ${showCalculator ? "bg-one border-one text-white" : "bg-white border-gray-100 text-gray-600"}`}
+          >
+            <Calculator size={14} />
+            <span>Calc</span>
+          </button>
+
+          <button
+            onClick={() => { setShowGraph(!showGraph); setShowCalculator(false); }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all font-bold text-[11px] ${showGraph ? "bg-purple-600 border-purple-600 text-white" : "bg-white border-gray-100 text-gray-600"}`}
+          >
+            <LineChartIcon size={14} />
+            <span>Graph</span>
+          </button>
+
+          {/* عداد الوقت الديناميكي */}
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-black border text-[11px] transition-colors ${timeLeft < 300 ? "bg-red-50 text-red-600 border-red-200" : "bg-one/10 text-one border-one/20"}`}>
+            <Clock size={14} className={timeLeft < 300 ? "animate-bounce" : "animate-pulse"} /> 
+            {formatTime(timeLeft)}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Container */}
+      <div className="w-full p-2 md:p-4 flex flex-col gap-3">
+        
+        {/* Navigator */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
+          <div className="flex items-center gap-2 mb-2 font-bold text-gray-400 uppercase text-[9px] tracking-widest">
+            <LayoutGrid size={12} className="text-one" /> Questions
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {questions?.map((q, index) => (
+              <button
+                key={q.id}
+                onClick={() => setCurrentQuestionIndex(index)}
+                className={`w-7 h-7 rounded-md font-bold transition-all text-[11px] ${currentQuestionIndex === index ? "ring-2 ring-one/30 border border-one" : "border border-transparent"} ${answers[q.id] ? "bg-one text-white" : "bg-gray-50 text-gray-400 hover:bg-gray-100"}`}
+              >
+                {index + 1}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Question Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 md:p-6 min-h-[380px] flex flex-col">
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-one font-bold text-[10px] uppercase">Question {currentQuestionIndex + 1}</span>
+            <span className="bg-gray-50 text-gray-400 px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-tighter">{question.answerType}</span>
+          </div>
+
+          <div className={`flex flex-col ${question.image ? 'lg:flex-row gap-6' : 'flex-col'} mb-6`}>
+            <div className="flex-1">
+              <h2 className="text-base md:text-lg font-bold text-gray-800 leading-snug">
+                {question.question}
+              </h2>
+            </div>
+
+            {question.image && (
+              <div className="flex-1 flex justify-center lg:justify-end">
+                <div 
+                  className="bg-gray-50 rounded-lg p-1.5 border border-gray-100 w-full max-w-[300px] cursor-zoom-in group relative overflow-hidden"
+                  onClick={() => setIsImageZoomed(true)} // تفعيل التكبير عند الضغط
+                >
+                  <img src={question.image} alt="Visual" className="w-full h-auto max-h-[220px] object-contain rounded-md transition-transform group-hover:scale-[1.02]" />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center">
+                     <span className="bg-white/80 px-2 py-1 rounded text-[8px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">Click to Enlarge</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Answers */}
+          <div className="mt-auto">
+            {question.answerType === "Grid in" ? (
+              <div className="max-w-[200px]">
+                <input
+                  type="text"
+                  autoFocus
+                  value={answers[question.id] || ""}
+                  onChange={(e) => handleAnswerChange(e.target.value)}
+                  placeholder="Answer..."
+                  className="w-full bg-gray-50 p-2 text-lg font-black text-one border border-gray-200 rounded-lg focus:border-one focus:bg-white outline-none"
+                />
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {question.options.map((opt, idx) => {
+                  const isSelected = answers[question.id] === opt.id;
+                  const labelLetter = String.fromCharCode(65 + idx);
+
+                  return (
+                    <label
+                      key={opt.id}
+                      className={`relative flex items-center gap-2 px-3 py-1.5 border rounded-lg cursor-pointer transition-all min-w-[100px] flex-1 sm:flex-none ${
+                        isSelected ? "border-one bg-one text-white" : "border-gray-100 bg-white hover:border-one/30"
+                      }`}
+                    >
+                      <input type="radio" checked={isSelected} onChange={() => handleAnswerChange(opt.id)} className="hidden" />
+                      <div className={`w-5 h-5 shrink-0 rounded text-[9px] font-black flex items-center justify-center ${isSelected ? "bg-white text-one" : "bg-gray-100 text-gray-500"}`}>
+                        {labelLetter}
+                      </div>
+                      <span className="text-xs font-medium">{opt.answer}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Controls */}
+          <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-50">
+            <button
+              disabled={currentQuestionIndex === 0}
+              onClick={() => setCurrentQuestionIndex((prev) => prev - 1)}
+              className="px-3 py-1.5 rounded-lg font-bold text-gray-400 text-[11px] bg-gray-50 hover:bg-gray-100 disabled:opacity-30 flex items-center gap-1"
+            >
+              <ChevronLeft size={14} /> Prev
             </button>
 
-            {isLastQuestion ? (
-              <button 
-                onClick={handleSubmit}
-                className="flex items-center px-8 py-2.5 rounded-lg font-medium text-white bg-green-600 hover:bg-green-700 transition shadow-md"
+           {isLastQuestion ? (
+<button
+ onClick={handleSubmit}
+                disabled={userLoading}
+ className={`px-5 py-1.5 rounded-lg font-bold text-white text-[11px] transition flex items-center gap-1 ${userLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
+ >
+{userLoading ? "Submitting..." : "Submit"} <CheckCircle size={14} />
+ </button>
+ ): (
+              <button
+                onClick={() => setCurrentQuestionIndex((prev) => prev + 1)}
+                className="px-5 py-1.5 rounded-lg font-bold text-white text-[11px] bg-one hover:opacity-90 flex items-center gap-1"
               >
-                Submit Exam
-                <CheckCircle className="w-5 h-5 ml-2" />
-              </button>
-            ) : (
-              <button 
-                onClick={() => setCurrentQuestionIndex(prev => prev + 1)}
-                className="flex items-center px-8 py-2.5 rounded-lg font-medium text-white bg-one hover:bg-one/80 transition shadow-sm"
-              >
-                Next
-                <ChevronRight className="w-5 h-5 ml-1" />
+                Next <ChevronRight size={14} />
               </button>
             )}
           </div>
         </div>
-
       </div>
     </div>
   );
