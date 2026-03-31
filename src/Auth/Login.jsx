@@ -1,19 +1,17 @@
-import usePost from "@/hooks/usePost";
 import { useState } from "react";
 import { toast,Toaster } from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import { TbMathFunction, TbArrowRight } from 'react-icons/tb';
  import api from '../api/api'
 const Login = () => {
-  const { postData, loading } = usePost();
   const navigate = useNavigate();
-
+ const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
  const handleLogin = async (e) => {
   e.preventDefault();
-
+setLoading(true);
   if (!email) return alert("Email is required");
   if (!password) return alert("Password is required");
 
@@ -39,7 +37,7 @@ const Login = () => {
   const message = error.response?.data?.error?.message || "Something went wrong";
   if(message=="Invalid Credentials"){
   toast.error(message);
-
+setLoading(false);
   }
   else{
   toast.error(message);
@@ -105,11 +103,11 @@ const Login = () => {
             </div>
 
             <button 
+              disabled={loading}
               type="submit"
               className="w-full bg-one hover:bg-[#5a0707] text-white font-bold py-4 rounded-2xl transition-all duration-300 shadow-lg shadow-one/20 flex items-center justify-center gap-3 group text-lg"
             >
-              <span>Secure Login</span>
-              <TbArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              {loading ? "Logging In..." : "Log In"}              <TbArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
           </form>
           <div className="text-center pt-2">
