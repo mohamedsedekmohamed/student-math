@@ -21,6 +21,12 @@ import Upcoming from '../pages/Attent/Upcoming'
 import Diagnostic from "../pages/Exams/Diagnostic";
 import ActiveExam from "../pages/Exams/ActiveExam";
 import Review from "../pages/Exams/Review";
+import MyCourses from "../pages/MyCourses/MyCourses";
+import OneCourses from "../pages/MyCourses/OneCourses";
+import Lesson  from "../pages/Lesson/lesson";
+import Chapters from "../pages/Chapters/Chapters";
+import OneChapter from "../pages/Chapters/OneChapter";
+import Enrollment from "../pages/Enrollment/Enrollment";
 const router = createBrowserRouter([
   {
     path: "/",
@@ -105,6 +111,30 @@ const router = createBrowserRouter([
       {
         path: "history",
         element: <History />,
+      },
+      {
+        path: "mycourses",
+        element: <MyCourses />,
+      },
+      {
+        path: "courses/:id",
+        element: <OneCourses />,
+      },
+      {
+        path: "lesson/:id",
+        element: <Lesson />,
+      },
+      {
+        path: "chapters/:id",
+        element: <Chapters />,
+      },
+      {
+        path: "chapter/:id",
+        element: <OneChapter />,
+      },
+      {
+        path: "enrollment",
+        element: <Enrollment />,
       },
     ],
   },

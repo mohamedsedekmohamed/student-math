@@ -12,6 +12,7 @@ const Review = () => {
     `/api/user/diagnostic-exams/attempts/${attemptId}/review`
   );
 
+  // 🔹 Handle different API shapes safely
   const questions = Array.isArray(data?.data?.data)
     ? data.data.data
     : Array.isArray(data?.data)
@@ -23,7 +24,7 @@ const Review = () => {
   if (loading) return <Loader />;
   if (error) return <Errorpage />;
 
-  if (!questions || questions.length === 0) {
+  if (!questions.length) {
     return (
       <div className="h-screen flex items-center justify-center text-gray-500 font-medium">
         No review data found.
@@ -31,211 +32,212 @@ const Review = () => {
     );
   }
 
-  // 👇 1. تجميع الأسئلة الصح والغلط لتكوين الملخص اللي فوق
+  // ✅ استخدام isCorrect من الـ API مباشرة
   const correctQuestions = [];
   const incorrectQuestions = [];
 
   questions.forEach((q, index) => {
-    const isMCQ = q.answerType === "MCQ";
-    const correctOption = q.correctAnswers?.[0];
-    const correctAnswersText = q.correctAnswers?.map((a) => a.answerText) || [];
-
-    const isCorrect =
-      (isMCQ && q.studentSubmittedMCQId === correctOption?.optionId) ||
-      (!isMCQ && correctAnswersText.includes(q.studentSubmittedGridInText));
-
-    if (isCorrect) {
+    if (q.isCorrect) {
       correctQuestions.push(index + 1);
     } else {
-      incorrectQuestions.push(index + 1); // الغلط أو اللي متجاوبش هيتحط هنا
+      incorrectQuestions.push(index + 1);
     }
   });
 
   const toggleExplanation = (index) => {
-    if (expandedRow === index) {
-      setExpandedRow(null);
-    } else {
-      setExpandedRow(index);
-    }
+    setExpandedRow(expandedRow === index ? null : index);
   };
 
-  // دالة النزول للسؤال لما تضغط على رقمه في الملخص
-  const scrollToQuestion = (questionNum) => {
-    const element = document.getElementById(`question-${questionNum}`);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "center" });
-      // ممكن نفتح الشرح بتاعه تلقائي كمان لو تحب
-      setExpandedRow(questionNum - 1);
+  const scrollToQuestion = (num) => {
+    const el = document.getElementById(`question-${num}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setExpandedRow(num - 1);
     }
   };
 
   return (
-    <div className="p-6 mx-auto max-w-7xl">
-      
-      {/* 👇 2. قسم الملخص (المربعات الصح والغلط) */}
+    <div className="p-6 max-w-6xl mx-auto">
+
+      {/* 🔥 Summary */}
       <div className="flex flex-col md:flex-row gap-6 mb-8">
-        {/* صندوق الإجابات الصحيحة */}
-        <div className="flex-1 border-2 border-green-500 bg-white p-5 rounded-sm">
-          <h3 className="text-black font-bold text-lg mb-4">
-            Correct Answers ({correctQuestions.length})
+        
+        {/* Correct */}
+        <div className="flex-1 border border-green-200 bg-green-50 p-6 rounded-xl shadow-sm">
+          <h3 className="text-green-800 font-bold text-lg mb-4">
+            ✅ Correct ({correctQuestions.length})
           </h3>
           <div className="flex flex-wrap gap-2">
             {correctQuestions.map((num) => (
               <button
                 key={num}
                 onClick={() => scrollToQuestion(num)}
-                className="w-14 h-10 bg-green-100 text-green-800 font-bold flex items-center justify-center rounded-sm hover:bg-green-200 transition-colors cursor-pointer border border-green-200"
+                className="w-12 h-12 rounded-lg bg-white border border-green-200 text-green-700 font-semibold shadow-sm hover:scale-105 transition"
               >
                 {num}
               </button>
             ))}
-            {correctQuestions.length === 0 && (
-              <span className="text-slate-400 text-sm">No correct answers.</span>
-            )}
           </div>
         </div>
 
-        {/* صندوق الإجابات الخاطئة / المتروكة */}
-        <div className="flex-1 border-2 border-red-500 bg-white p-5 rounded-sm">
-          <h3 className="text-black font-bold text-lg mb-4">
-            Incorrect Answers ({incorrectQuestions.length})
+        {/* Incorrect */}
+        <div className="flex-1 border border-red-200 bg-red-50 p-6 rounded-xl shadow-sm">
+          <h3 className="text-red-800 font-bold text-lg mb-4">
+            ❌ Incorrect ({incorrectQuestions.length})
           </h3>
           <div className="flex flex-wrap gap-2">
             {incorrectQuestions.map((num) => (
               <button
                 key={num}
                 onClick={() => scrollToQuestion(num)}
-                className="w-14 h-10 bg-[#fed7aa] text-[#9a3412] font-bold flex items-center justify-center rounded-sm hover:bg-[#fdba74] transition-colors cursor-pointer border border-[#fdba74]"
+                className="w-12 h-12 rounded-lg bg-white border border-red-200 text-red-700 font-semibold shadow-sm hover:scale-105 transition"
               >
                 {num}
               </button>
             ))}
-            {incorrectQuestions.length === 0 && (
-              <span className="text-slate-400 text-sm">Perfect! No mistakes.</span>
-            )}
           </div>
         </div>
       </div>
 
-      {/* 👇 3. الجدول الأساسي */}
-      <div className="border border-gray-200 rounded-xl shadow-sm overflow-hidden bg-white">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-one text-white">
-              <th className="p-4 font-bold border-b border-one">Question number</th>
-              <th className="p-4 font-bold border-b border-one">Your answer</th>
-              <th className="p-4 font-bold border-b border-one">Correct answer</th>
-              <th className="p-4 font-bold border-b border-one text-center">Actions</th>
-            </tr>
-          </thead>
-          
-          <tbody>
-            {questions?.map((q, index) => {
-              const isMCQ = q.answerType === "MCQ";
-              const correctOption = q.correctAnswers?.[0];
-              const correctAnswersText = q.correctAnswers?.map((a) => a.answerText) || [];
+      {/* 🔥 Questions Cards بدل Table */}
+      <div className="space-y-5">
+        {questions.map((q, index) => {
+          const isMCQ = q.answerType === "MCQ";
+          const correctOption = q.correctAnswers?.[0];
 
-              const isCorrect =
-                (isMCQ && q.studentSubmittedMCQId === correctOption?.optionId) ||
-                (!isMCQ && correctAnswersText.includes(q.studentSubmittedGridInText));
+          const isCorrect = q.isCorrect;
 
-              const hasAnswered = isMCQ 
-                ? !!q.studentSubmittedMCQId 
-                : !!q.studentSubmittedGridInText;
-
-              let yourAnswerDisplay = "Unanswered";
-              if (hasAnswered) {
-                if (isMCQ) {
-                  yourAnswerDisplay = isCorrect ? correctOption?.answerText : "Wrong";
-                } else {
-                  yourAnswerDisplay = q.studentSubmittedGridInText;
-                }
-              }
-
-              const correctAnswerDisplay = isMCQ
+          const yourAnswer = isMCQ
+            ? q.studentSubmittedMCQId
+              ? isCorrect
                 ? correctOption?.answerText
-                : correctAnswersText.join(" or ");
+                : "Wrong Answer"
+              : "Unanswered"
+            : q.studentSubmittedGridInText || "Unanswered";
 
-              return (
-                <React.Fragment key={q.questionId || index}>
-                  {/* ضفنا ID هنا عشان الـ Scroll يشتغل لما نضغط على المربع اللي فوق */}
-                  <tr 
-                    id={`question-${index + 1}`} 
-                    className={`border-b border-gray-200 hover:bg-one/5 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
+          const correctAnswer = isMCQ
+            ? correctOption?.answerText
+            : q.correctAnswers?.map((a) => a.answerText).join(" or ");
+
+          return (
+            <div
+              key={q.questionId}
+              id={`question-${index + 1}`}
+              className={`p-5 rounded-xl border shadow-sm transition ${
+                isCorrect
+                  ? "bg-green-50 border-green-200"
+                  : "bg-red-50 border-red-200"
+              }`}
+            >
+              {/* Header */}
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="font-bold text-lg text-slate-800">
+                  Question {index + 1}
+                </h3>
+
+                <span
+                  className={`px-3 py-1 text-sm rounded-full font-medium ${
+                    isCorrect
+                      ? "bg-green-200 text-green-800"
+                      : "bg-red-200 text-red-800"
+                  }`}
+                >
+                  {isCorrect ? "Correct" : "Wrong"}
+                </span>
+              </div>
+
+              {/* Question Text */}
+              <div
+                className="mb-4 text-slate-700"
+                dangerouslySetInnerHTML={{ __html: q.questionText }}
+              />
+
+              {/* Image */}
+              {q.questionImage && (
+                <img
+                  src={q.questionImage}
+                  alt="question"
+                  className="w-full max-w-md rounded-lg border mb-4"
+                />
+              )}
+
+              {/* Answers */}
+              <div className="grid md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="font-semibold text-slate-600">
+                    Your Answer:
+                  </p>
+                  <p
+                    className={`mt-1 ${
+                      yourAnswer === "Unanswered"
+                        ? "text-gray-400"
+                        : isCorrect
+                        ? "text-green-700 font-medium"
+                        : "text-red-600 font-medium"
+                    }`}
                   >
-                    <td className="p-4 text-slate-700 font-bold">{index + 1}</td>
-                    <td className="p-4">
-                      <span className={!hasAnswered ? "text-slate-400" : isCorrect ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
-                        {yourAnswerDisplay}
-                      </span>
-                    </td>
-                    <td className="p-4 text-slate-800 font-medium">{correctAnswerDisplay}</td>
-                    <td className="p-4 text-center">
-                      <button
-                        onClick={() => toggleExplanation(index)}
-                        className="bg-one/10 hover:bg-one hover:text-white text-one px-4 py-2 rounded-md font-medium transition-colors text-sm"
-                      >
-                        {expandedRow === index ? "Hide explanation" : "View explanation"}
-                      </button>
-                    </td>
-                  </tr>
+                    {yourAnswer}
+                  </p>
+                </div>
 
-                  {/* التفاصيل والشرح */}
-                  {expandedRow === index && (
-                    <tr className="bg-slate-50 shadow-inner">
-                      <td colSpan="4" className="p-0 border-b border-gray-200">
-                        <div className="p-6 m-4 bg-white border border-slate-200 rounded-xl shadow-sm">
-                          <h3 className="font-bold text-lg mb-3 border-b pb-2">Question {index + 1} Details:</h3>
-                          
-                          <div
-                            className="mb-4 text-slate-700 prose prose-sm max-w-none"
-                            dangerouslySetInnerHTML={{ __html: q.questionText || "—" }}
-                          />
+                <div>
+                  <p className="font-semibold text-slate-600">
+                    Correct Answer:
+                  </p>
+                  <p className="text-green-700 font-semibold mt-1">
+                    {correctAnswer}
+                  </p>
+                </div>
+              </div>
 
-                          {q.questionImage && (
-                            <img
-                              src={q.questionImage}
-                              alt="question"
-                              className="w-full max-w-lg max-h-60 object-contain mb-4 rounded-xl border border-slate-200"
-                            />
-                          )}
+              {/* Button */}
+              <button
+                onClick={() => toggleExplanation(index)}
+                className="mt-4 text-sm font-medium text-one hover:underline"
+              >
+                {expandedRow === index
+                  ? "Hide explanation"
+                  : "View explanation"}
+              </button>
 
-                          {(q.explanationContent?.pdf || q.explanationContent?.video) && (
-                            <div className="mt-4 pt-4 border-t border-slate-100 space-y-3 bg-slate-50 p-4 rounded-lg">
-                              <h4 className="font-bold text-slate-800 flex items-center gap-2">
-                                💡 Explanation:
-                              </h4>
+              {/* Explanation */}
+              {expandedRow === index && (
+                <div className="mt-4 p-4 bg-white border rounded-lg shadow-sm">
+                  <h4 className="font-semibold mb-2 text-slate-700">
+                    💡 Explanation
+                  </h4>
 
-                              {q.explanationContent?.pdf && (
-                                <a
-                                  href={q.explanationContent.pdf}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium underline"
-                                >
-                                  📄 View PDF Explanation
-                                </a>
-                              )}
-
-                              {q.explanationContent?.video && (
-                                <video
-                                  controls
-                                  className="w-full max-w-xl max-h-64 rounded-xl border border-slate-200 mt-2 shadow-sm"
-                                >
-                                  <source src={q.explanationContent.video} type="video/mp4" />
-                                </video>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                  {q.explanationContent?.pdf && (
+                    <a
+                      href={q.explanationContent.pdf}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block text-blue-600 underline mb-2"
+                    >
+                      📄 View PDF
+                    </a>
                   )}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+
+                  {q.explanationContent?.video && (
+                    <video controls className="w-full rounded">
+                      <source
+                        src={q.explanationContent.video}
+                        type="video/mp4"
+                      />
+                    </video>
+                  )}
+
+                  {!q.explanationContent?.pdf &&
+                    !q.explanationContent?.video && (
+                      <p className="text-gray-400 text-sm">
+                        No explanation available.
+                      </p>
+                    )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
